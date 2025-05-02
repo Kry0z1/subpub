@@ -2,22 +2,27 @@ package subpub_test
 
 import (
 	"context"
+	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Kry0z1/subpub/pkg/subpub"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Базовый тест подписки и публикации
 func TestBasicOneSubscriber(t *testing.T) {
 	sp := subpub.NewSubPub()
-	var received bool
+
+	received := make(chan struct{})
 	sub, err := sp.Subscribe("test", func(msg interface{}) {
-		received = msg == "hello"
+		close(received)
 	})
 	assert.NoError(t, err)
 
@@ -26,7 +31,11 @@ func TestBasicOneSubscriber(t *testing.T) {
 	err = sp.Publish("test", "hello")
 	assert.NoError(t, err)
 
-	assert.Eventually(t, func() bool { return received }, 500*time.Millisecond, 10*time.Millisecond, "Message not received")
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Message not received")
+	case <-received:
+	}
 }
 
 // Тест FIFO порядка сообщений
@@ -182,4 +191,104 @@ func TestClosedSystemErrors(t *testing.T) {
 
 	err = sp.Publish("closed", nil)
 	assert.Error(t, err, "Should reject publish after successful close")
+}
+
+func TestConcurrent(t *testing.T) {
+	sp := subpub.NewSubPub()
+
+	stream := make(chan string)
+	_, err := sp.Subscribe("concurrent", func(msg interface{}) {
+		stream <- msg.(string)
+	})
+	require.NoError(t, err)
+
+	const workers = 100
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for i := range workers {
+		go func() {
+			defer wg.Done()
+			err := sp.Publish("concurrent", fmt.Sprintf("msg-%d", i))
+			require.NoError(t, err)
+		}()
+	}
+
+	received := make(map[string]bool)
+	var mu sync.Mutex
+
+	go func() {
+		for {
+			msg := <-stream
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			received[msg] = true
+			mu.Unlock()
+		}
+	}()
+
+	wg.Wait()
+	time.Sleep(time.Second)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, workers, len(received))
+}
+
+func TestHighload(t *testing.T) {
+	sp := subpub.NewSubPub()
+
+	const (
+		messagesCount    = 1000
+		topicsCount      = 10
+		subscribersCount = 50
+	)
+
+	var wgRun, wgSubscribed sync.WaitGroup
+	wgRun.Add(subscribersCount * topicsCount)
+	wgSubscribed.Add(subscribersCount * topicsCount)
+
+	for i := range topicsCount {
+		for range subscribersCount {
+			go func() {
+				defer wgRun.Done()
+				stream := make(chan string)
+				_, err := sp.Subscribe(strconv.Itoa(i), func(msg interface{}) {
+					stream <- msg.(string)
+				})
+				require.NoError(t, err)
+				wgSubscribed.Done()
+
+				for j := range messagesCount {
+					data := <-stream
+					require.Equal(t, fmt.Sprintf("message-%d", j), data)
+				}
+			}()
+		}
+	}
+
+	wgSubscribed.Wait()
+
+	for i := range topicsCount {
+		go func() {
+			for j := range messagesCount {
+				err := sp.Publish(strconv.Itoa(i), fmt.Sprintf("message-%d", j))
+				require.NoError(t, err)
+			}
+		}()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		wgRun.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("High load test timeout")
+	}
 }

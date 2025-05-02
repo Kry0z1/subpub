@@ -1,6 +1,9 @@
 package subpub
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 type subscription struct {
 	id       int64
@@ -8,10 +11,11 @@ type subscription struct {
 	cb       MessageHandler
 	b        *broadcaster
 
-	active bool
+	active *atomic.Bool
 
 	mut          *sync.Mutex
 	cond         *sync.Cond
+	queueLen     *atomic.Int64
 	messageQueue []interface{}
 
 	receiverClosed  chan struct{}
@@ -28,6 +32,7 @@ func (s *subscription) messageReceiver() {
 	for message := range s.receiver {
 		s.mut.Lock()
 		s.messageQueue = append(s.messageQueue, message)
+		s.queueLen.Add(1)
 		s.mut.Unlock()
 		s.cond.Signal()
 	}
@@ -45,13 +50,13 @@ func (s *subscription) messageReceiver() {
 // Blocking call, should be used in goroutine.
 func (s *subscription) queueProcessor() {
 	for {
-		if !s.active {
-			if len(s.messageQueue) == 0 {
+		if !s.active.Load() {
+			if s.queueLen.Load() == 0 {
 				break
 			}
 		} else {
 			s.cond.L.Lock()
-			for len(s.messageQueue) == 0 && s.active {
+			for s.queueLen.Load() == 0 && s.active.Load() {
 				s.cond.Wait()
 			}
 			s.cond.L.Unlock()
@@ -60,6 +65,7 @@ func (s *subscription) queueProcessor() {
 		s.mut.Lock()
 		copiedQueue := s.messageQueue
 		s.messageQueue = make([]interface{}, 0)
+		s.queueLen.Store(0)
 		s.mut.Unlock()
 
 		for _, message := range copiedQueue {
@@ -88,7 +94,7 @@ func (s *subscription) unsubscribe() {
 	<-s.receiverClosed
 
 	// stop handler
-	s.active = false
+	s.active.Store(false)
 	s.cond.Signal()
 
 	// wait
@@ -111,7 +117,7 @@ func (s *subscription) Unsubscribe() {
 	<-s.receiverClosed
 
 	// stop handler
-	s.active = false
+	s.active.Store(false)
 	s.cond.Signal()
 
 	// wait

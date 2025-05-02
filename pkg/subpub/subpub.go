@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 )
 
 var (
@@ -37,15 +38,17 @@ func (s *subpub) Subscribe(subject string, cb MessageHandler) (Subscription, err
 		cb:       cb,
 		b:        b,
 
-		active: true,
+		active: &atomic.Bool{},
 
 		mut:          &sync.Mutex{},
 		cond:         sync.NewCond(&sync.Mutex{}),
+		queueLen:     &atomic.Int64{},
 		messageQueue: make([]interface{}, 0),
 
 		receiverClosed:  make(chan struct{}),
 		processorClosed: make(chan struct{}),
 	}
+	sub.active.Store(true)
 
 	b.mut.Lock()
 	b.subscriptions[id] = &sub
