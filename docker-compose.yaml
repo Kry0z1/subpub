@@ -1,0 +1,9 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 15000:15000
+    environment:
+      - CONFIG_PATH=/app/config/local.yaml

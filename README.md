@@ -8,7 +8,16 @@ using grpc.
 ```shell
 git clone https://github.com/Kry0z1/subpub.git
 cd subpub
+```
+
+To run locally:
+```shell
 CONFIG_PATH=./config/local.yaml go run .
+```
+
+To run inside docker container:
+```shell
+docker compose up
 ```
 
 And just like that server will be started and ran on `localhost:15000`.
