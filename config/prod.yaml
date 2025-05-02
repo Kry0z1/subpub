@@ -1,0 +1,5 @@
+env: prod
+stop_timeout: 10s
+grpc:
+  port: 15000
+  timeout: 5s

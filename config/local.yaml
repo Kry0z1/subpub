@@ -1,0 +1,5 @@
+env: local
+stop_timeout: 10s
+grpc:
+  port: 15000
+  timeout: 72h
