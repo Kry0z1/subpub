@@ -1,10 +1,12 @@
 ## SubPub
 ### What is it?
 It is another one implementation of subscriber-publisher
-protocol, but with three main restrictions:
+protocol, but with four main restrictions:
 1. No message is lost
 2. Slow subscribers don't slow down whole system
 3. No goroutines are going to be leaked
+4. System should be able to stop gracefully, but considering 
+passed context. 
 
 It has created a lot of problems, most of which had pretty
 disgusting solutions like "add another mutex".
@@ -42,6 +44,22 @@ And on the outermost layer resides subpub system, containing
 sync.Map of broadcasters for all topics. Topic creation is 
 a rare occasion(which might not be the case, but why not), so 
 sync.Map is the best fit there.
+
+Closing is kinda interesting too. After context close no more 
+than 1 handler will be killed. Others will just hang there.
+Caller will have no way to kill them, as system will be marked
+as closed to prevent misusing.
+
+### Why no interfaces on inside?
+As you might see, inner structures separated enough to be
+easily abstracted by using interfaces, but the last step
+has not been done. There are two main reasons:
+1. Testing did not require it.
+2. These interfaces would have only 1 implementation.
+
+I see no other needs to use interfaces in that project.
+But once again, this could easily be done in no more than
+5 minutes.
 
 ### Usage
 Look inside [domain.go](/domain.go) to find all about interfaces.

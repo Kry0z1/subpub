@@ -18,7 +18,7 @@ type broadcaster struct {
 	closed            bool
 }
 
-// Closes broadcaster and  unsubscribes all of its subscribers.
+// Close stops broadcaster and unsubscribes all of its subscribers.
 //
 // On success returns nil.
 //
@@ -29,7 +29,7 @@ type broadcaster struct {
 // After context closing at most 1 subscriber will be stopped.
 //
 // On closed context returns ctx.Err().
-func (b *broadcaster) close(ctx context.Context) error {
+func (b *broadcaster) Close(ctx context.Context) error {
 	b.mut.Lock()
 	defer b.mut.Unlock()
 
@@ -46,13 +46,13 @@ func (b *broadcaster) close(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		sub.unsubscribe()
+		sub.UnsubscribeNoLock()
 	}
 
 	return nil
 }
 
-func (b *broadcaster) publish(message interface{}) error {
+func (b *broadcaster) Publish(message interface{}) error {
 	if b.closed {
 		return ErrBroadcasterClosed
 	}
@@ -64,6 +64,26 @@ func (b *broadcaster) publish(message interface{}) error {
 	}
 
 	return nil
+}
+
+func (b *broadcaster) RegisterSub(sub *subscription, id int64) {
+	b.mut.Lock()
+	b.subscriptions[id] = sub
+	b.mut.Unlock()
+}
+
+func (b *broadcaster) UnregisterSub(id int64) {
+	b.mut.Lock()
+	delete(b.subscriptions, id)
+	b.mut.Unlock()
+}
+
+func (b *broadcaster) UnregisterSubNoLock(id int64) {
+	delete(b.subscriptions, id)
+}
+
+func (b *broadcaster) GetNextId() int64 {
+	return b.maxSubscriptionID.Add(1)
 }
 
 func newBroadcaster() broadcaster {

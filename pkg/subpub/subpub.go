@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 )
 
 var (
@@ -30,33 +29,15 @@ func (s *subpub) Subscribe(subject string, cb MessageHandler) (Subscription, err
 	bAny, _ := s.broadcasters.LoadOrStore(subject, &newBroadcast)
 	b := bAny.(*broadcaster)
 
-	id := b.maxSubscriptionID.Add(1)
+	id := b.GetNextId()
 
-	sub := subscription{
-		id:       id,
-		receiver: make(chan interface{}, 1),
-		cb:       cb,
-		b:        b,
+	sub := newSubscription(id, cb, b)
 
-		active: &atomic.Bool{},
+	b.RegisterSub(sub, id)
 
-		mut:          &sync.Mutex{},
-		cond:         sync.NewCond(&sync.Mutex{}),
-		queueLen:     &atomic.Int64{},
-		messageQueue: make([]interface{}, 0),
+	sub.Start()
 
-		receiverClosed:  make(chan struct{}),
-		processorClosed: make(chan struct{}),
-	}
-	sub.active.Store(true)
-
-	b.mut.Lock()
-	b.subscriptions[id] = &sub
-	b.mut.Unlock()
-
-	sub.start()
-
-	return &sub, nil
+	return sub, nil
 }
 
 // Publish passes subject to broadcaster on subject if there is any.
@@ -74,7 +55,7 @@ func (s *subpub) Publish(subject string, msg interface{}) error {
 	if !ok {
 		return nil
 	}
-	if err := bAny.(*broadcaster).publish(msg); err != nil {
+	if err := bAny.(*broadcaster).Publish(msg); err != nil {
 		return ErrTopicClosed
 	}
 	return nil
@@ -100,7 +81,7 @@ func (s *subpub) Close(ctx context.Context) error {
 
 	go func() {
 		s.broadcasters.Range(func(key, value any) bool {
-			err := value.(*broadcaster).close(ctx)
+			err := value.(*broadcaster).Close(ctx)
 			return err == nil
 		})
 		if ctx.Err() == nil {

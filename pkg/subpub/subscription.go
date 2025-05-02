@@ -75,17 +75,17 @@ func (s *subscription) queueProcessor() {
 	s.processorClosed <- struct{}{}
 }
 
-func (s *subscription) start() {
+func (s *subscription) Start() {
 	go s.messageReceiver()
 	go s.queueProcessor()
 }
 
-// unsubscribe does the same as Unsubscribe, but
+// UnsubscribeNoLock does the same as Unsubscribe, but
 // doesn't take lock for broadcaster.subscriptions.
 //
 // Used primarily on broadcaster closing.
-func (s *subscription) unsubscribe() {
-	delete(s.b.subscriptions, s.id)
+func (s *subscription) UnsubscribeNoLock() {
+	s.b.UnregisterSubNoLock(s.id)
 
 	// stop receiver
 	close(s.receiver)
@@ -106,9 +106,7 @@ func (s *subscription) unsubscribe() {
 //
 // Waits for receiver and processor to be stopped.
 func (s *subscription) Unsubscribe() {
-	s.b.mut.Lock()
-	delete(s.b.subscriptions, s.id)
-	s.b.mut.Unlock()
+	s.b.UnregisterSub(s.id)
 
 	// stop receiver
 	close(s.receiver)
@@ -122,4 +120,25 @@ func (s *subscription) Unsubscribe() {
 
 	// wait
 	<-s.processorClosed
+}
+
+func newSubscription(id int64, cb MessageHandler, b *broadcaster) *subscription {
+	sub := &subscription{
+		id:       id,
+		receiver: make(chan interface{}, 1),
+		cb:       cb,
+		b:        b,
+
+		active: &atomic.Bool{},
+
+		mut:          &sync.Mutex{},
+		cond:         sync.NewCond(&sync.Mutex{}),
+		queueLen:     &atomic.Int64{},
+		messageQueue: make([]interface{}, 0),
+
+		receiverClosed:  make(chan struct{}),
+		processorClosed: make(chan struct{}),
+	}
+	sub.active.Store(true)
+	return sub
 }
