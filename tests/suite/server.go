@@ -1,10 +1,11 @@
 package suite
 
 import (
+	"log/slog"
+
 	"github.com/Kry0z1/subpub/internal/app"
 	"github.com/Kry0z1/subpub/internal/config"
 	"github.com/Kry0z1/subpub/internal/logger/slogdiscard"
-	"log/slog"
 )
 
 func StartServer(cfg *config.Config) func() {

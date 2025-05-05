@@ -3,15 +3,18 @@ package tests
 import (
 	"context"
 	"fmt"
-	pubsubv1 "github.com/Kry0z1/subpub/protos/gen/go/pubsub"
-	"github.com/Kry0z1/subpub/tests/suite"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	pubsubv1 "github.com/Kry0z1/subpub/protos/gen/go/pubsub"
+	"github.com/Kry0z1/subpub/tests/suite"
+
+	"google.golang.org/grpc"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const receiveTimeout = 2 * time.Second

@@ -2,7 +2,9 @@ package grpc
 
 import (
 	"context"
+
 	pubsubv1 "github.com/Kry0z1/subpub/protos/gen/go/pubsub"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
