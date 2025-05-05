@@ -62,9 +62,9 @@ But once again, this could easily be done in no more than
 5 minutes.
 
 ### Usage
-Look inside [domain.go](/domain.go) to find all about interfaces.
+Look inside [domain.go](./domain.go) to find all about interfaces.
 
 ### Testing
 ```bash
-go test {path to subpub pkg} -v -race
+go test {project root}/pkg/subpub -v -race
 ```

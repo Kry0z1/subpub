@@ -42,4 +42,4 @@ can die gracefully
  - Middlewares: as interceptors of grpc server
  - Publish-Subscribe: kinda obvious
  - Property-based testing: tested subpub according to properties
-defined in [subpub](./pkg/subpub/README.md)
+defined in [README.md](./pkg/subpub/README.md)
